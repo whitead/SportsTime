@@ -1,0 +1,138 @@
+\documentclass{article}
+
+\usepackage{amsmath, amssymb}
+\usepackage{algorithm2e}
+
+\DeclareMathOperator{\Beta}{Beta}
+\DeclareMathOperator{\Bin}{Bin}
+
+\author{Andrew White}
+\title{Inference on Sports with Beta-Binomial Model} 
+
+\begin{document}
+\maketitle
+
+\section{Model}
+
+We're going to use a beta-binomial. The data will be a matrix of
+wins $x_{ij}$ and a matrix of total games played between opponent
+$i$ and $j$, $n_{ij}$. The probablity of a win is $p_{ij}$ which comes
+from a beta distribution with parameters $(\alpha_i, \alpha_j)$. The
+$\alpha$s are the team strenghts, and are in units of psuedo-wins.
+
+To generate samples from this model given a schedule, first sample the
+probability that team $i$ beats team $j$ ($p_{ij}$) from
+$\Beta(\alpha_i, \alpha_j)$. Next, sample an outcome of the game given
+$p_{ij}$.
+
+To sample parameters for this model, we'll use Markov Chain Monte
+Carlo . First, we sample each individual $p_{ij}$. Those are
+independent and distriubted according:
+\[
+\Pr(p_{ij} | X, N, \vec{\alpha}) = \frac{\Gamma (\alpha_i + x_{ij},
+  \alpha_j + n_{ij} - x_{ij})}{\Gamma(\alpha_i +
+  x_{ij})\Gamma(\alpha_j + n_{ij} - x_{ij})} p_{ij}^{x_{ij} + \alpha_i
+  - 1}(1 - p_{ij})^{n_{ij} - x_{ij} + \alpha_j - 1}
+\]
+Then we use a Metropolis-hastings move for the $\alpha$
+vector. Stochastically, we choose an index $k$ and then randomly
+perturb $\alpha_k$ until all of them have been sampled. The likelihood
+ratio is evaluated as:
+\[
+\Pr(\vec{\alpha}|...) = \prod_{p_{ij} \in j > i} \frac{\Gamma (\alpha_i +  \alpha_j + n_{ij})}{\Gamma(\alpha_i + x_{ij})\Gamma(\alpha_j + n_{ij} - x_{ij})} p_{ij}^{x_{ij} + \alpha_i - 1}(1 - p_{ij})^{n_{ij} - x_{ij} + \alpha_j - 1}
+\]
+
+\begin{multline}
+\frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)} = \left[\prod_{p_{kj} \in
+    j > k} \frac{\Gamma (\alpha_k' + \alpha_j + n_{kj})\Gamma(\alpha_k + x_{kj})}{\Gamma(\alpha_k + \alpha_j + n_{kj})\Gamma(\alpha_k' +
+    x_{kj})}
+  p_{kj}^{\alpha_k' - \alpha_k}\right] \cdot
+\\
+\left[\prod_{p_{ik} \in k > i}
+  \frac{\Gamma (\alpha_k' +  \alpha_i + n_{ik})\Gamma(\alpha_k + n_{ik} -
+    x_{ik})}{\Gamma(\alpha_k + n_{ik} + \alpha_i)\Gamma(\alpha_k' + n_{ik} - x_{ik})} (1 -
+  p_{ik})^{\alpha_k' - \alpha_k}\right]
+\end{multline}
+
+\section{Algorithm}
+
+\begin{algorithm}
+\KwData{$X$ (times team $i$ beat team $j$), $N$ (games played between $i$ and $j$), $m$ (number of teams)}
+\KwResult{$\vec{\alpha}$}
+Initialize: $\alpha_i = \sum_{j} x_{ij}$, $p_{ij} = 0.5$\;
+\While{True}{
+  \For{$i$ in $0\ldots m - 1$}{
+    \For{$j$ in $i + 1 \ldots m - 1$} {
+      Sample $p_{ij}$ from $\Beta(\alpha_i + x_{ij}, \alpha_j + n_{ij} - x_{ij})$
+      Set $p_{ji}$ = $1 - p_{ij}$\;
+    }
+  }
+  \For{sample $k$ in $0\ldots m - 1$}{
+    sample $\epsilon$ uniformly from $[-\eta, \eta]$\;
+    propose $\alpha_k' = \alpha_k + \epsilon$\;
+    Accept with probability $\min\left( \frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)}, 1\right)$ (Eq. 1)\;
+  }
+  Histogram $\vec{\alpha}$\;
+}
+\caption{Sampling parameters for the model}
+\end{algorithm}
+
+\begin{algorithm}
+\KwData{$N$ (games played between $i$ and $j$), $\vec{\alpha}$, m (number of teams)}
+\KwResult{$X$ (the win matrix), $f(X)$ (a function of the result of the games)}
+\While{True}{
+Initialize $X = 0$\;
+  \For{$i$ in $0\ldots m - 1$}{
+    \For{$j$ in $i + 1 \ldots m - 1$} {
+      Sample $p_{ij}$ from $\Beta(\alpha_i, \alpha_j)$\;
+      Sample $x_{ij}$ from $\Bin(p_{ij}, n_{ij})$\;
+      Set $x_{ji} = n_{ij} - x_{ij}$\;
+    }
+  }
+  Histogram $X$ and/or $f(X)$\;
+}
+\caption{Generating realizaions of the win matrix from the model}
+\end{algorithm}
+  
+
+\section{Logrithm Transformations}
+
+\subsection{Equation 2}
+
+\begin{multline}
+\ln\left(\frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)}\right) = \sum_{p_{kj} \in
+    j > k} \ln\Gamma (\alpha_k' + \alpha_j + n_{kj}) + \ln\Gamma(\alpha_k + x_{kj}) + 
+    (\alpha_k' - \alpha_k) \ln p_{kj} -\\
+ \ln\Gamma(\alpha_k + \alpha_j + n_{kj}) - \ln\Gamma(\alpha_k' +
+    x_{kj}) +
+\\
+ \sum_{p_{ik} \in
+    k > i} \ln\Gamma (\alpha_k'  + \alpha_k +
+    n_{ik}) + \ln\Gamma(\alpha_k+ n_{ik} - x_{ik}) + 
+    (\alpha_k' - \alpha_k) \ln (1 - p_{kk}) -\\
+ \ln\Gamma(\alpha_k  + \alpha_k + n_{ik}) - \ln\Gamma(\alpha_k'+ n_{ik} -
+    x_{ik})
+\end{multline}
+
+
+\section{Stirling's Approximation}
+
+\[
+\frac{\Gamma(x + \alpha)}{\Gamma(x + \beta)} \approx  x^{\beta - \alpha}
+\]
+
+\[
+\ln\left(\frac{\Gamma( + \alpha)}{\Gamma(x + \beta)}\right) \approx  (\beta - \alpha)\ln x
+\]
+
+
+\begin{multline}
+\ln\left(\frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)}\right) \approx \sum_{p_{kj} \in
+    j > k} (\alpha_k' - \alpha_k)\left[\ln (\alpha_j + n_{kj}) + \ln(x_{kj}) + \ln p_{kj}\right] +\\
+\\
+ \sum_{p_{ik} \in
+    k > i}  (\alpha_k' - \alpha_k)\left[\ln (\alpha_i + n_{ik}) + \ln(x_{ik}) + \ln (1 - p_{ik})\right]\\
+\end{multline}
+
+
+\end{document}
