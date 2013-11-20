@@ -15,3 +15,6 @@
 #latex
 *.log
 *.aux
+
+#emacs
+*~
