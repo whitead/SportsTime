@@ -32,7 +32,7 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
 		  void *fxn,
 		  const unsigned int team_number, const Run_Params *rp) {
   
-  unsigned int i,j,k, acceptance;
+  unsigned int i,j,k, iters, acceptance;
   double alpha_trial, rel_lprob, ratio;
 
   //initalize parameters as needed
@@ -48,13 +48,13 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
       P[i] = 0.5;
   }
 
-  unsigned int iters;
+
   for(iters = 0 ;iters < rp->iter_max; iters++) {
 
     //sample new pij
     for(i = 0; i < team_number; i++) {
       for(j = i + 1; j < team_number; j++) {
-	P[i * team_number + j] = gsl_ran_beta(rp->rng, alpha[i] + wins[i * team_number + j], games[i * team_number + j] - wins[i * team_number + j]);
+	P[i * team_number + j] = gsl_ran_beta(rp->rng, alpha[i] + wins[i * team_number + j], alpha[j] + games[i * team_number + j] - wins[i * team_number + j]);
       }
     }
     
@@ -98,3 +98,26 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
   return ratio
 }
 
+void generate_wins(unsigned int *wins, unsigned int *games,
+		   const double *alpha,
+		   void *fxn,
+		   const unsigned int team_number, const Run_Params *rc) {
+
+  unsigned int iters;
+  doouble pij;
+  
+  //initialize parameters as needed
+  if(!wins)
+    wins = (unsigned int*) calloc(sizeof(unsigned int) * team_number * (team_nubmer - 1) / 2);
+  
+  //sample realization
+  for(iters = 0 ;iters < rp->iter_max; iters++) {
+    //sample
+    for(i = 0; i < team_number; i++) {
+      for(j = i + 1; j < team_number; j++) {
+	pij = gsl_ran_beta(rp->rng, alpha[i],alpha[j]);
+	wins[i * team_number + j] = gsl_ran_binomial(rp->rng, pij, games[i * team_number + j]);
+      }
+    }
+    fxn(wins);
+}

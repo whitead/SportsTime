@@ -19,20 +19,19 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
 
 
 /*******************************************************************************
- * Generate a win matrix given the game number matrix, the alpha & P
+ * Generate a win matrix given the game number matrix, the alpha
  * model parameters. 
  *
- * Required parameters: alpha, P, and games. Wins is where the result
+ * Required parameters: alpha, and games. Wins is where the result
  * of the calculation will be stored. May be null.
  *
  * Optional parameters: fxn contains an optional function which will
- * be executed on each realiziation of the win matrix (if the rp (run
- * parameters) has an iteration number greater than 1)
+ * be executed on each realiziation of the win matrix.
  *
  * Returns: void
  *******************************************************************************/
 void generate_wins(unsigned int *wins, unsigned int *games,
-		   const double *alpha, const double *P,
+		   const double *alpha,
 		   void *fxn,
 		   const unsigned int team_number, const Run_Params *rc);
 
