@@ -1,0 +1,48 @@
+Arizona Cardinals      3.39291
+Atlanta Falcons       2.04362
+Baltimore Ravens        2.79753
+Buffalo Bills       2.29145
+Carolina Panthers       3.61556
+Chicago Bears        2.42975
+Cincinnati Bengals       3.32222
+Cleveland Browns        2.17859
+Dallas Cowboys       3.18827
+Denver Broncos       2.87709
+Detroit Lions       2.543
+Green Bay Packers        2.94344
+Houston Texans       2.58435
+Indianapolis Colts       3.09612
+Jacksonville Jaguars        2.26297
+Kansas City Chiefs       3.51186
+Miami Dolphins       2.12024
+Minnesota Vikings        3.14039
+New England Patriots       2.83386
+New Orleans Saints       2.49317
+New York Giants        2.70822
+New York Jets       2.71092
+Oakland Raiders        2.74823
+Philadelphia Eagles        2.73162
+Pittsburgh Steelers       2.66272
+San Diego Chargers       2.62551
+San Francisco 49ers       2.75421
+Seattle Seahawks       2.79663
+St Louis Rams       2.57383
+Tampa Bay Buccaneers        2.59773
+Tennessee Titans       2.60451
+Washington Redskins         2.5956
+
+TeamA      TeamB       Alpha1  Alpha2  P(W)    Predicted Winner   Result
+Saints     Falcons     2.49317 2.04362 0.590   Saints	          Saints
+Jets 	   Ravens      2.71092 2.79753 0.489   Ravens		  Ravens
+Steelers   Browns      2.66272 2.17589 0.587   Steelers		  Steelers
+Panthers   Dolphins    3.61556 2.12024 0.701   Panthers		  Panthers
+Bears 	   Rams	       2.42975 2.57383 0.477   Rams		  Rams
+Buccaneers Lions       2.59773 2.54300 0.510   Buccaneers	  Buccaneers
+Vikings    Packers     3.14039 2.94344 0.525   Vikings		  Vikings
+Jaguars    Texans      2.26297 2.58435 0.445   Texans		  Jaguars
+Chargers   Chiefs      2.62551 3.51186 0.394   Chiefs		  Chargers
+Colts 	   Cardinals   3.09612 3.39291 0.468   Cardinals	  Cardinals
+Titans 	   Raiders     2.60451 2.74823 0.480   Raiders		  Titans
+Cowboys    Giants      3.18827 2.70822 0.563   Cowboys		  Cowboys
+Broncos    Patriots    2.87709 2.83386 0.507   Broncos		  ------
+49ers 	   Redskins    2.75421 2.59560 0.525   49ers		  -------

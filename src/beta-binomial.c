@@ -36,7 +36,7 @@ bool lMH(double lp, gsl_rng* rng){
   return gsl_rng_uniform(rng) < exp(lp);
 }
 
-int main(int argc, char* argv[]) {
+int test() {
   
   unsigned int team_number = 5;
   unsigned int i;
@@ -64,6 +64,38 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
+int main(int argc, char* argv[]) {
+
+
+  unsigned int team_number;
+  sscanf(argv[1], "%ud", &team_number);
+  unsigned int* square_wins = load_uint_matrix(argv[2], team_number, team_number);
+
+  unsigned int i,j;
+  unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
+  unsigned int *wins = (unsigned int*) calloc(team_number * (team_number - 1) / 2, sizeof(unsigned int));
+
+  for(i = 0; i < team_number; i++) {
+    for(j = i + 1; j < team_number; j++) {
+      games[symm_index(i,j,team_number)] = square_wins[i * team_number + j];
+      games[symm_index(i,j,team_number)] += square_wins[j * team_number + i];
+      wins[symm_index(i,j,team_number)] = square_wins[i * team_number + j];
+    }      
+  }
+    
+
+  Run_Params* rp = init_run_params(200000, 0.5, 0.3);
+  //  Run_Params* rp = init_run_params(2, 0, 0.3);
+  double *alpha = (double*) calloc(team_number, sizeof(double));
+
+  //  print_wins_fxn(wins, games, team_number, 0, NULL, NULL);
+
+  printf("Acceptance: %g\n", sample_model(wins, games, NULL, NULL, print_sample_fxn, alpha, team_number, rp));
+
+  
+  return 0;
+}
+
 double sample_model(const unsigned int *wins, const unsigned int *games, 
 		  double *alpha, double *P,
 		    void (*fxn)(const double*, 
@@ -77,7 +109,7 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
   
   unsigned int i,j,k, iters, acceptance, index;
   double alpha_trial, rel_lprob, ratio;
-  const unsigned int max_alpha = team_number;
+  const unsigned int max_alpha = 5;
 
 
   //initalize parameters as needed
@@ -87,11 +119,8 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
       alpha[i] = 1;
   }
   
-  if(!P) {
+  if(!P)
     P = (double*) malloc(sizeof(double) * team_number * (team_number - 1) / 2);
-    for(i = 0; i < team_number * (team_number - 1) / 2; i++)
-      P[i] = 0.5;
-  }
 
   for(iters = 0 ;iters < rp->iterations; iters++) {
 
@@ -256,7 +285,8 @@ void print_sample_fxn(const double* alpha, const double* P,
     running_alpha[i] = running_alpha[i] * (iteration - 1) / iteration +
       alpha[i] / iteration;
 
-  if(iteration % 10000 != 0)
+
+  if(iteration % 1000 != 0)
     return;
 
   printf("P:\n");
@@ -281,5 +311,35 @@ void print_sample_fxn(const double* alpha, const double* P,
   for(i = 0; i < team_number; i++)
     printf("%12g ", running_alpha[i]);
   printf("\n");
+
+}
+
+unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int ncol) {
+
+  FILE *mfile;
+  mfile = fopen(filename, "r");
+  if(mfile != NULL) {
+
+    unsigned int i, j;
+
+    unsigned int *matrix =  (unsigned int*) malloc(sizeof(unsigned int) * nrow * ncol);
+    for(i = 0; i < nrow; i++) {
+      for(j = 0; j < ncol; j++) {
+	if(fscanf(mfile, "%ud", &(matrix[i*ncol + j])) == 0) {
+	  fprintf(stderr, "Incorrect number of rows or columns"
+		  "at i = %d, and j=%d, nrow=%d, ncol=%d\n", i, j, nrow, ncol);
+	  exit(1);
+	}
+      }  
+    }
+
+    fclose(mfile);
+    return matrix;
+    
+  }else {
+    perror("Could not open file\n");
+  }
+
+  return NULL;
 
 }

@@ -100,3 +100,4 @@ void print_sample_fxn(const double* alpha, const double* P,
 		      unsigned int team_number, unsigned int iterations, const Run_Params *rp,
 		      void* arg);
 
+unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int ncol);
