@@ -39,18 +39,16 @@ vector. Stochastically, we choose an index $k$ and then randomly
 perturb $\alpha_k$ until all of them have been sampled. The likelihood
 ratio is evaluated as:
 \[
-\Pr(\vec{\alpha}|...) = \prod_{p_{ij} \in j > i} \frac{\Gamma (\alpha_i +  \alpha_j + n_{ij})}{\Gamma(\alpha_i + x_{ij})\Gamma(\alpha_j + n_{ij} - x_{ij})} p_{ij}^{x_{ij} + \alpha_i - 1}(1 - p_{ij})^{n_{ij} - x_{ij} + \alpha_j - 1}
+\Pr(\vec{\alpha}|...) = \prod_{p_{ij} \in j > i} \frac{\Gamma (\alpha_i +  \alpha_j)}{\Gamma(\alpha_i)\Gamma(\alpha_j)} p_{ij}^{\alpha_i - 1}(1 - p_{ij})^{\alpha_j - 1}
 \]
 
 \begin{multline}
 \frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)} = \left[\prod_{p_{kj} \in
-    j > k} \frac{\Gamma (\alpha_k' + \alpha_j + n_{kj})\Gamma(\alpha_k + x_{kj})}{\Gamma(\alpha_k + \alpha_j + n_{kj})\Gamma(\alpha_k' +
-    x_{kj})}
+    j > k} \frac{\Gamma (\alpha_k' + \alpha_j)\Gamma(\alpha_k)}{\Gamma(\alpha_k + \alpha_j)\Gamma(\alpha_k')}
   p_{kj}^{\alpha_k' - \alpha_k}\right] \cdot
 \\
 \left[\prod_{p_{ik} \in k > i}
-  \frac{\Gamma (\alpha_k' +  \alpha_i + n_{ik})\Gamma(\alpha_k + n_{ik} -
-    x_{ik})}{\Gamma(\alpha_k + n_{ik} + \alpha_i)\Gamma(\alpha_k' + n_{ik} - x_{ik})} (1 -
+  \frac{\Gamma (\alpha_k' +  \alpha_i)\Gamma(\alpha_k)}{\Gamma(\alpha_k + \alpha_i)\Gamma(\alpha_k')} (1 -
   p_{ik})^{\alpha_k' - \alpha_k}\right]
 \end{multline}
 
@@ -101,17 +99,14 @@ Initialize $X = 0$\;
 
 \begin{multline}
 \ln\left(\frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)}\right) = \sum_{p_{kj} \in
-    j > k} \ln\Gamma (\alpha_k' + \alpha_j + n_{kj}) + \ln\Gamma(\alpha_k + x_{kj}) + 
+    j > k} \ln\Gamma (\alpha_k' + \alpha_j) + \ln\Gamma(\alpha_k) + 
     (\alpha_k' - \alpha_k) \ln p_{kj} -\\
- \ln\Gamma(\alpha_k + \alpha_j + n_{kj}) - \ln\Gamma(\alpha_k' +
-    x_{kj}) +
+ \ln\Gamma(\alpha_k + \alpha_j) - \ln\Gamma(\alpha_k') +
 \\
  \sum_{p_{ik} \in
-    k > i} \ln\Gamma (\alpha_k'  + \alpha_k +
-    n_{ik}) + \ln\Gamma(\alpha_k+ n_{ik} - x_{ik}) + 
-    (\alpha_k' - \alpha_k) \ln (1 - p_{kk}) -\\
- \ln\Gamma(\alpha_k  + \alpha_k + n_{ik}) - \ln\Gamma(\alpha_k'+ n_{ik} -
-    x_{ik})
+    k > i} \ln\Gamma (\alpha_k'  + \alpha_i) + \ln\Gamma(\alpha_k) + 
+    (\alpha_k' - \alpha_k) \ln (1 - p_{ik}) -\\
+ \ln\Gamma(\alpha_k  + \alpha_i) - \ln\Gamma(\alpha_k')
 \end{multline}
 
 
@@ -122,16 +117,25 @@ Initialize $X = 0$\;
 \]
 
 \[
-\ln\left(\frac{\Gamma( + \alpha)}{\Gamma(x + \beta)}\right) \approx  (\beta - \alpha)\ln x
+\ln\left(\frac{\Gamma(x + \alpha)}{\Gamma(x + \beta)}\right) \approx  (\beta - \alpha)\ln x
+\]
+
+\[
+\ln\left(\frac{\Gamma(\alpha)}{\Gamma(\beta)}\right) \approx (\alpha - 0.5) \ln\alpha - (\beta - 0.5)\ln \beta + (\beta - \alpha)
+\]
+\[
+\approx \alpha(\ln\alpha - 1) - \beta(\ln\beta - 1)
 \]
 
 
 \begin{multline}
 \ln\left(\frac{\Pr(\alpha_k'|...)}{\Pr(\alpha_k|...)}\right) \approx \sum_{p_{kj} \in
-    j > k} (\alpha_k' - \alpha_k)\left[\ln (\alpha_j + n_{kj}) + \ln(x_{kj}) + \ln p_{kj}\right] +\\
+    j > k} (\alpha_k' - \alpha_k)\left[\ln (\alpha_j) + \ln p_{kj}\right] + 
+\alpha_k(\ln\alpha_k - 1) - \alpha'_k(\ln\alpha'_k - 1) +\\
 \\
  \sum_{p_{ik} \in
-    k > i}  (\alpha_k' - \alpha_k)\left[\ln (\alpha_i + n_{ik}) + \ln(x_{ik}) + \ln (1 - p_{ik})\right]\\
+    k > i}  (\alpha_k' - \alpha_k)\left[\ln (\alpha_i) + \ln (1 - p_{ik})\right] + 
+    \alpha_k(\ln\alpha_k - 1) - \alpha'_k(\ln\alpha'_k - 1)\\
 \end{multline}
 
 
