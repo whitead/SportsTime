@@ -43,7 +43,7 @@ int test() {
   double *alpha = (double*) malloc(sizeof(double) * team_number);
   for(i = 0; i < team_number; i++)
     alpha[i] = 10 - i * 2;
-  Run_Params* rp = init_run_params(1, 0, 0.2);
+  Run_Params* rp = init_run_params(1, 0, 0.2, 10);
   unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
   for(i = 0; i < team_number * (team_number - 1) / 2; i++)
     games[i] = i; 
@@ -55,7 +55,7 @@ int test() {
   generate_wins(wins, games, alpha, print_wins_fxn, NULL, team_number, rp);
 
   free(rp);
-  rp = init_run_params(100000, 0.5, 20);
+  rp = init_run_params(100000, 0.5, 20, 10);
   for(i = 0; i < team_number; i++)
     alpha[i] = 0;
 
@@ -74,17 +74,21 @@ int main(int argc, char* argv[]) {
   unsigned int i,j;
   unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
   unsigned int *wins = (unsigned int*) calloc(team_number * (team_number - 1) / 2, sizeof(unsigned int));
+  double max_alpha = 5.;
 
   for(i = 0; i < team_number; i++) {
     for(j = i + 1; j < team_number; j++) {
       games[symm_index(i,j,team_number)] = square_wins[i * team_number + j];
       games[symm_index(i,j,team_number)] += square_wins[j * team_number + i];
+      if(games[symm_index(i,j,team_number)] > max_alpha)
+	max_alpha = games[symm_index(i,j,team_number)];
       wins[symm_index(i,j,team_number)] = square_wins[i * team_number + j];
     }      
   }
-    
 
-  Run_Params* rp = init_run_params(200000, 0.5, 0.3);
+
+  max_alpha = fmin(max_alpha, team_number * (team_number - 1) / 2);
+  Run_Params* rp = init_run_params(200000, 0.5, 0.3, max_alpha);
   //  Run_Params* rp = init_run_params(2, 0, 0.3);
   double *alpha = (double*) calloc(team_number, sizeof(double));
 
@@ -108,8 +112,8 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
 		    const unsigned int team_number, const Run_Params *rp) {
   
   unsigned int i,j,k, iters, acceptance, index;
-  double alpha_trial, rel_lprob, ratio;
-  const unsigned int max_alpha = 5;
+  double alpha_trial, rel_lprob, ratio = 0;
+  double max_alpha = rp->max_alpha;
 
 
   //initalize parameters as needed
@@ -173,7 +177,7 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
     
     //run the function
     if(fxn && iters > rp->iterations * rp->equilibrium_ratio)
-      fxn(alpha, P, team_number, iters - rp->iterations * rp->equilibrium_ratio, rp, fxn_args);
+      fxn(alpha, P, team_number, iters, rp, fxn_args);
 
   }
   return ratio;
@@ -211,11 +215,12 @@ void generate_wins(unsigned int *wins, const unsigned int *games,
   }
 }
 
-Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, double step_size) {
+Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, double step_size, double max_alpha) {
   Run_Params* rp = (Run_Params*) malloc(sizeof(Run_Params));
   rp->iterations = iterations;
   rp->equilibrium_ratio = equilibrium_ratio;
   rp->step_size = step_size;
+  rp->max_alpha = max_alpha;
 
   const gsl_rng_type * T;
   gsl_rng_env_setup();
@@ -226,30 +231,19 @@ Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, d
 }
 
 
-void log_array(FILE* file, double* array, unsigned int n_cols, unsigned int n_rows, bool do_sum) {
+void log_array(FILE* file, double* array, unsigned int n_cols, unsigned int n_rows) {
   
   if(file == NULL)
     return;
 
   unsigned int i,j;
-  double sum = 0;
-
   for(i = 0; i < n_rows; i++) {
-    if(do_sum)
-      sum = 0;
     for(j = 0; j < n_cols; j++) {
-      if(do_sum)
-	sum += array[i * n_cols + j];
-      fprintf(file, "%12g ", array[i * n_cols + j]); 
+      fprintf(file, "%5g ", array[i * n_cols + j]); 
     }
-    if(do_sum)
-      fprintf(file, "%12g\n", sum);
-    else
-      fprintf(file, "\n");
+    fprintf(file, "\n");
   }
-
-  fflush(file);
-  
+  fflush(file);  
 }
 
 
@@ -280,14 +274,23 @@ void print_sample_fxn(const double* alpha, const double* P,
 
   double* running_alpha = (double*) arg;
   unsigned int i,j;
+  unsigned int obs_iteration = (unsigned int) rp->iterations * rp->equilibrium_ratio;
 
   for(i = 0; i < team_number; i++)
-    running_alpha[i] = running_alpha[i] * (iteration - 1) / iteration +
-      alpha[i] / iteration;
+    running_alpha[i] = running_alpha[i] * (obs_iteration - 1) / obs_iteration +
+      alpha[i] / obs_iteration;
 
+  if(iteration == rp->iterations - 1) {    
+    FILE *mfile = fopen("alpha.txt", "w");
+    log_array(mfile, running_alpha, team_number, 1);
+    fclose(mfile);
+  }
+    
 
-  if(iteration % 1000 != 0)
+  if(iteration % 10000 != 0)
     return;
+  
+
 
   printf("P:\n");
   for(i = 0; i < 80; i++)

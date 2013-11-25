@@ -13,6 +13,7 @@ typedef struct Run_Params_s {
   unsigned int iterations;
   double equilibrium_ratio;
   double step_size;
+  double max_alpha;
   gsl_rng* rng;
 } Run_Params;
 
@@ -79,7 +80,7 @@ void generate_wins(unsigned int *wins, const unsigned int *games,
  * Returns: Run_Params 
  *
  *******************************************************************************/
-Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, double step_size);
+Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, double step_size, double max_alpha);
 
 
 /*******************************************************************************
