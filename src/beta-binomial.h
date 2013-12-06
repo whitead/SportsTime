@@ -66,7 +66,7 @@ void generate_wins(unsigned int *wins, const unsigned int *games,
 			       unsigned int,
 			       const Run_Params*,
 			       void*),
-		    void *fxn_args,
+                   		    void *fxn_args,
 		   const unsigned int team_number, const Run_Params *rp);
 
 
@@ -89,16 +89,45 @@ Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, d
  *
  *******************************************************************************/
 void print_wins_fxn(const unsigned int *wins, const unsigned int *games,
-		    unsigned int team_number, unsigned int iterations, const Run_Params *rp, 
+		    unsigned int team_number, 
+		    unsigned int iterations, 
+		    const Run_Params *rp, 
 		    void *arg);
 
 /*******************************************************************************
- * A function which prints the wins and satisfies the requirements for
- * being passed to sample_model.
+ * A function which histograms and prints alpha and satisfies the
+ * requirements for being passed to sample_model.
  *
  *******************************************************************************/
-void print_sample_fxn(const double* alpha, const double* P,
-		      unsigned int team_number, unsigned int iterations, const Run_Params *rp,
+void accum_sample_fxn(const double* alpha, const double* P,
+		      unsigned int team_number, 
+		      unsigned int iterations, const Run_Params *rp,
 		      void* arg);
+/*******************************************************************************
+ * This function can be passed to sample_model and will generate a
+ * matrix of wins then histogram the result.
+ *
+ * *******************************************************************************/
+void sample_wins_wrapper(const double* alpha, const double* P,
+			 unsigned int team_number, 
+			 unsigned int iterations, const Run_Params *rp,
+			 void* win_params);
+
+typedef struct Matrix_Histogram_s {
+  unsigned int dimension;
+  unsigned int nbins;
+  double width;
+  unsigned long int *hist; 
+} Matrix_Histogram;
+
+Matrix_Histogram* build_matrix_histogram(unsigned int dimension, 
+					 unsigned int nbins);
+					 
+
+typedef struct Wins_Parameters_s {
+  Matrix_Histogram* mhist;
+  unsigned int* win_sample;
+  unsigned int* games;
+} Win_Parameters;
 
 unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int ncol);

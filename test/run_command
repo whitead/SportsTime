@@ -1,0 +1,1 @@
+../src/beta-binomial -w 2013_wins -p 2013_remaining.txt -m 32 -n 10

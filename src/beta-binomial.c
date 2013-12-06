@@ -2,6 +2,8 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_sf_gamma.h>
 #include <math.h>
+#include <unistd.h>
+#include <string.h>
 
 
 inline
@@ -59,17 +61,57 @@ int test() {
   for(i = 0; i < team_number; i++)
     alpha[i] = 0;
 
-  printf("Acceptance: %g\n", sample_model(wins, games, alpha_fit, P, print_sample_fxn, alpha, team_number, rp));
+  printf("Acceptance: %g\n", sample_model(wins, games, alpha_fit, P, accum_sample_fxn, alpha, team_number, rp));
   
   return 0;
 }
 
+void print_help() {
+
+  printf("Usage: beta-binomial -w [filename] -p [filename] -m [team number] -n [iterations]n");
+  printf("w (wins filename) - file containing matrix of wins between M teams\n");
+  printf("p (predict filename) - optional file which contains a matrix of games whose outcome should be predicted\n");
+  printf("m (integer) - number of teams\n");
+  printf("n (integer) - number of model samples to use\n");
+
+}
+
 int main(int argc, char* argv[]) {
+  
+  if(argc < 6) {
+    print_help();
+    return 0;
+  }
 
-
-  unsigned int team_number;
-  sscanf(argv[1], "%ud", &team_number);
-  unsigned int* square_wins = load_uint_matrix(argv[2], team_number, team_number);
+  unsigned int team_number, iterations;
+  team_number = iterations = 0;
+  char* win_filename, predict_filename;
+  win_filename = predict_filename = NULL;
+  extern char *optarg;
+  char c;
+  while((c = getopt(argc, argv, "w:p:m:n:")) != -1) {
+    
+    switch(c) {
+      
+    case 'w':
+      strcpy(win_filename, optarg);
+      break;
+    case 'p':
+      strcpy(predict_filename, optarg);
+      break;
+    case 'm':
+      team_number = atoi(optarg);
+      break;
+    case 'n':
+      iterations = atoi(optarg);
+      break;
+    default:
+      print_help();
+      return 0;
+    }
+  }
+     
+  unsigned int* square_wins = load_uint_matrix(wins_filename, team_number, team_number);
 
   unsigned int i,j;
   unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
@@ -88,15 +130,34 @@ int main(int argc, char* argv[]) {
 
 
   max_alpha = fmin(max_alpha, team_number * (team_number - 1) / 2);
-  Run_Params* rp = init_run_params(200000, 0.5, 0.3, max_alpha);
-  //  Run_Params* rp = init_run_params(2, 0, 0.3);
+  Run_Params* rp = init_run_params(iterations, 0.5, 0.3, max_alpha);
   double *alpha = (double*) calloc(team_number, sizeof(double));
 
-  //  print_wins_fxn(wins, games, team_number, 0, NULL, NULL);
+  print_wins_fxn(wins, games, team_number, 0, NULL, NULL);
 
-  printf("Acceptance: %g\n", sample_model(wins, games, NULL, NULL, print_sample_fxn, alpha, team_number, rp));
-
-  
+  if(predict_filename == NULL)
+    printf("Acceptance: %g\n", sample_model(wins, games, NULL, NULL, accum_sample_fxn, alpha, team_number, rp));
+  else {
+    //sample wins while sampleing the model
+    //setup win parameters
+    wp = (Wins_Parameters*) malloc(sizeof(Wins_Parameters)):
+    wp->mhist = build_matrix_histogram(team_number, team_number);
+    wp->win_sample = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
+    //load the games to predict
+    wp->games = load_uint_matrix(predict_filename, team_number, team_number);
+    //sample from loaded games
+    sample_model(wins, games, 
+		 NULL, NULL, 
+		 sample_wins_wrapper, alpha, 
+		 team_number, wp);
+    //print out histogram
+    for(i = 0; i < team_number; i++) {
+      for(j = 0; j < team_number; j++)
+	printf("%d ", wp->mhist->hist[i * wp->mhist->nbins + j]);
+      printf("\n");
+    }
+    
+  }    
   return 0;
 }
 
@@ -253,7 +314,7 @@ void print_wins_fxn(const unsigned int *wins, const unsigned int *games,
   unsigned int i,j;
   unsigned int sum = 0;  
 
-  for(i = 0; i < team_number; i++) {
+x/   for(i = 0; i < team_number; i++) {
     sum = 0;
     for(j = 0; j < i; j++) {
       sum += (games[symm_index(j,i,team_number)] - wins[symm_index(j,i,team_number)]);
@@ -269,8 +330,9 @@ void print_wins_fxn(const unsigned int *wins, const unsigned int *games,
   fprintf(stdout, "\n");
 }
 
-void print_sample_fxn(const double* alpha, const double* P,
-		      unsigned int team_number, unsigned int iteration, const Run_Params *rp, void* arg) {
+void accum_sample_fxn(const double* alpha, const double* P,		      
+		      unsigned int team_number, unsigned int iteration, 
+		      const Run_Params *rp, void* arg) {
 
   double* running_alpha = (double*) arg;
   unsigned int i,j;
@@ -344,5 +406,44 @@ unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int n
   }
 
   return NULL;
+
+}
+
+void sample_wins_wrapper(const double* alpha, const double* P,
+			 unsigned int team_number, 
+			 unsigned int iterations, const Run_Params *rp,
+			 void* win_params_) {
+
+
+  Win_Params* wp = (Win_Params*) win_params_;
+  Matrix_Histogram mhist = wp->mhist;
+  
+  unsigned int i,j,k,l;
+  
+  //sample wins
+  generate_wins(wp->win_sample, wp->games, alpha,
+		NULL, team_number, rp);
+  
+  //histogram value
+  for(i = 0; i < team_number; i++){ 
+    for(j = i + 1; j < team_number; j++) {
+      k = symm_index(i,j,team_number);      
+      l = (unsigned int) fmin(wp->win_sample[k] / mhist->width, 
+			      mhist->nbins - 1);
+      mhist->hist[k * mhist->nbins + l]++;
+    }
+  }
+}
+
+Matrix_Histogram* build_matrix_histogram(unsigned int dimension, 
+					 unsigned int nbins) {
+
+  mhist = (Matrix_Histogram*) malloc(sizeof(Matrix_Histogram));
+  mhist->dimension = dimension;
+  mhist->nbins = nbins;
+  mhist->width = (double) dimension / nbsins;
+  mhist->hist = (unsigned long int*) malloc(sizeof(unsigned long int) * 
+					    dimension * nbsin);
+  return mhist;
 
 }
