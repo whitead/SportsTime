@@ -113,21 +113,24 @@ void sample_wins_wrapper(const double* alpha, const double* P,
 			 unsigned int iterations, const Run_Params *rp,
 			 void* win_params);
 
-typedef struct Matrix_Histogram_s {
+typedef struct Array_Histogram_s {
   unsigned int dimension;
   unsigned int nbins;
   double width;
   unsigned long int *hist; 
-} Matrix_Histogram;
+} Array_Histogram;
 
-Matrix_Histogram* build_matrix_histogram(unsigned int dimension, 
-					 unsigned int nbins);
+Array_Histogram* build_array_histogram(unsigned int dimension, 
+				       unsigned int nbins,
+				       double width);
 					 
 
 typedef struct Wins_Parameters_s {
-  Matrix_Histogram* mhist;
+  Array_Histogram* mhist;
   unsigned int* win_sample;
   unsigned int* games;
-} Win_Parameters;
+} Wins_Parameters;
 
 unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int ncol);
+
+void log_histogram(FILE* file, Array_Histogram* hist);
