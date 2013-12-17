@@ -5,6 +5,9 @@
 #include <unistd.h>
 #include <string.h>
 
+#define FILENAME_BUFFER_LENGTH 80
+#define NBINS 500
+#define tsize(x) (x * (x - 1) / 2)
 #define MAX_WINS 25
 
 inline
@@ -47,11 +50,11 @@ int test() {
   for(i = 0; i < team_number; i++)
     alpha[i] = 10 - i * 2;
   Run_Params* rp = init_run_params(1, 0, 0.2, 10);
-  unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
-  for(i = 0; i < team_number * (team_number - 1) / 2; i++)
+  unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * tsize(team_number));
+  for(i = 0; i < tsize(team_number); i++)
     games[i] = i; 
 
-  unsigned int *wins = (unsigned int*) calloc(team_number * (team_number - 1) / 2, sizeof(unsigned int));
+  unsigned int *wins = (unsigned int*) calloc(tsize(team_number), sizeof(unsigned int));
   double *alpha_fit = NULL;
   double *P = NULL;
   
@@ -69,7 +72,7 @@ int test() {
 
 void print_help() {
 
-  printf("Usage: beta-binomial -w [filename] -p [filename] -m [team number] -n [iterations]n");
+  printf("Usage: beta-binomial -w [filename] -p [filename] -m [team number] -n [iterations]\n");
   printf("w (wins filename) - file containing matrix of wins between M teams\n");
   printf("p (predict filename) - optional file which contains a matrix of games whose outcome should be predicted\n");
   printf("m (integer) - number of teams\n");
@@ -86,18 +89,18 @@ int main(int argc, char* argv[]) {
 
   unsigned int team_number, iterations;
   team_number = iterations = 0;
-  char* win_filename, *predict_filename;
-  win_filename = predict_filename = NULL;
+  char win_filename[FILENAME_BUFFER_LENGTH];
+  char* predict_filename = NULL;
   extern char *optarg;
   char c;
   while((c = getopt(argc, argv, "w:p:m:n:")) != -1) {
     
-    switch(c) {
-      
+    switch(c) {      
     case 'w':
       strcpy(win_filename, optarg);
       break;
     case 'p':
+      predict_filename = (char*) malloc(sizeof(char) * FILENAME_BUFFER_LENGTH);
       strcpy(predict_filename, optarg);
       break;
     case 'm':
@@ -111,39 +114,74 @@ int main(int argc, char* argv[]) {
       return 0;
     }
   }
+ 
+#ifdef DEBUG
+  printf("Parsed arguments: \n");
+  printf("win_file: %s\n", win_filename);
+  printf("predict_file: %s\n", predict_filename ? predict_filename : "N/A");
+  printf("team_number: %u\n", team_number);
+  printf("iterations: %u\n", iterations);
+#endif //DEBUG
      
-  unsigned int* square_wins = load_uint_matrix(win_filename, team_number, team_number);
+  unsigned int* square_wins = load_uint_matrix(win_filename, team_number, team_number);  
 
   unsigned int i,j;
-  unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
-  unsigned int *wins = (unsigned int*) calloc(team_number * (team_number - 1) / 2, sizeof(unsigned int));
-  double max_alpha = 5.;
+  unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * tsize(team_number));
+  unsigned int *wins = (unsigned int*) calloc(tsize(team_number), sizeof(unsigned int));
+  unsigned int max_games = 0;
+  double max_alpha;
 
   for(i = 0; i < team_number; i++) {
     for(j = i + 1; j < team_number; j++) {
       games[symm_index(i,j,team_number)] = square_wins[i * team_number + j];
       games[symm_index(i,j,team_number)] += square_wins[j * team_number + i];
-      if(games[symm_index(i,j,team_number)] > max_alpha)
-	max_alpha = games[symm_index(i,j,team_number)];
+      if(games[symm_index(i,j,team_number)] > max_games)
+	max_games = games[symm_index(i,j,team_number)];
       wins[symm_index(i,j,team_number)] = square_wins[i * team_number + j];
     }      
   }
 
+#ifdef DEBUG
 
-  max_alpha = fmin(max_alpha, team_number * (team_number - 1) / 2);
-  Run_Params* rp = init_run_params(iterations, 0.5, 0.3, max_alpha);
+  unsigned int w, g, k;
+  //print record of all the teams
+  for(i = 0; i < team_number; i++) {
+    w = g = 0;
+    for(j = 0; j < i; j++) {
+      k = symm_index(j,i,team_number);
+      g += games[k];
+      w += games[k] - wins[k];
+    }
+    for(j = i + 1; j < team_number; j++) {
+      k = symm_index(i,j,team_number);
+      w += wins[k];
+      g += games[k];
+    }
+    printf("Record %d %d - %d\n", i, w, g - w);
+  }
 
-  print_wins_fxn(wins, games, team_number, 0, NULL, NULL);
+#endif //DEBUG
+  
+
+  max_alpha = fmin(max_games, tsize(team_number));
+  Run_Params* rp = init_run_params(iterations, 0.5, max_alpha / 10, max_alpha);
 
   if(predict_filename == NULL) {
-    Array_Histogram* alpha_hist = build_array_histogram(team_number, 100, max_alpha / 100.);    
-    printf("Acceptance: %g\n", sample_model(wins, games, NULL, NULL, accum_sample_fxn, alpha_hist, team_number, rp));
+    Array_Histogram* alpha_hist = build_array_histogram(team_number, NBINS, max_alpha / NBINS);    
+    double acceptance = sample_model(wins, games, NULL, NULL, accum_sample_fxn, alpha_hist, team_number, rp);
+#ifdef DEBUG
+  printf("Acceptance: %g\n", acceptance);
+#endif //DEBUG
+    //write histogram
+    FILE *mfile = fopen("alpha.txt", "w");
+    log_histogram(mfile, alpha_hist);
+    fclose(mfile);
   } else {
     //sample wins while sampleing the model
     //setup win parameters
     Wins_Parameters* wp = (Wins_Parameters*) malloc(sizeof(Wins_Parameters));
-    wp->mhist = build_array_histogram(team_number * (team_number - 1) / 2, MAX_WINS, 1.0); 
-    wp->win_sample = (unsigned int*) malloc(sizeof(unsigned int) * team_number * (team_number - 1) / 2);
+    wp->mhist = build_array_histogram(tsize(team_number), MAX_WINS, 1.0); 
+    wp->win_sample = (unsigned int*) malloc(sizeof(unsigned int) * tsize(team_number));
     //load the games to predict
     wp->games = load_uint_matrix(predict_filename, team_number, team_number);
     //sample from loaded games
@@ -151,8 +189,10 @@ int main(int argc, char* argv[]) {
 		 NULL, NULL, 
 		 sample_wins_wrapper, wp, 
 		 team_number, rp);
-    //print out histogram
-    log_histogram(stdout, wp->mhist);
+    //write histogram
+    FILE *mfile = fopen("predicted_wins.txt", "w");
+    log_histogram(mfile, wp->mhist);
+    fclose(mfile);
     
   }    
   return 0;
@@ -182,7 +222,7 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
   }
   
   if(!P)
-    P = (double*) malloc(sizeof(double) * team_number * (team_number - 1) / 2);
+    P = (double*) malloc(sizeof(double) * tsize(team_number));
 
   for(iters = 0 ;iters < rp->iterations; iters++) {
 
@@ -257,7 +297,7 @@ void generate_wins(unsigned int *wins, const unsigned int *games,
   
   //initialize parameters as needed
   if(!wins)
-    wins = (unsigned int*) calloc(team_number * (team_number - 1) / 2, sizeof(unsigned int));
+    wins = (unsigned int*) calloc(tsize(team_number), sizeof(unsigned int));
   
   //sample realization
   for(iters = 0 ;iters < rp->iterations; iters++) {
@@ -313,12 +353,17 @@ void log_histogram(FILE* file, Array_Histogram* hist) {
   fprintf(file, "# dimension %d\n", hist->dimension);
   fprintf(file, "# nbins %d\n", hist->nbins);
   fprintf(file, "# width %g\n", hist->width);
-
+  
   unsigned int i,j;
+  fprintf(file, "Value ");
+  for(i = 0; i < hist->dimension; i++)
+    fprintf(file, "%5u ", i);
+  fprintf(file, "\n");
+
   for(i = 0; i < hist->nbins; i++) {
     fprintf(file, "%5g ", hist->width * i + hist->width / 2.);
     for(j = 0; j < hist->dimension; j++) {
-      fprintf(file, "%3lud ", hist->hist[j * hist->nbins + i]); 
+      fprintf(file, "%5lu ", hist->hist[j * hist->nbins + i]); 
     }
     fprintf(file, "\n");
   }
@@ -362,11 +407,6 @@ void accum_sample_fxn(const double* alpha, const double* P,
     alpha_hist->hist[i * alpha_hist->nbins + j]++;
   }
     
-  if(iteration == rp->iterations - 1) {    
-    FILE *mfile = fopen("alpha.txt", "w");
-    log_histogram(mfile, alpha_hist);
-    fclose(mfile);
-  }    
 }
 
 unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int ncol) {
@@ -380,7 +420,7 @@ unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int n
     unsigned int *matrix =  (unsigned int*) malloc(sizeof(unsigned int) * nrow * ncol);
     for(i = 0; i < nrow; i++) {
       for(j = 0; j < ncol; j++) {
-	if(fscanf(mfile, "%ud", &(matrix[i*ncol + j])) == 0) {
+	if(fscanf(mfile, "%u", &(matrix[i*ncol + j])) == 0) {
 	  fprintf(stderr, "Incorrect number of rows or columns"
 		  "at i = %d, and j=%d, nrow=%d, ncol=%d\n", i, j, nrow, ncol);
 	  exit(1);

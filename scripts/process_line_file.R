@@ -3,7 +3,7 @@
 argv <- commandArgs(trailingOnly = TRUE)
 
 if(length(argv) < 2) {
-    print("Usage: [input csv] [beta-binomial input file] [start game] [end game]")
+    print("Usage: [input csv] [beta-binomial input filename] [start game] [end game]")
     q()
 }
 
@@ -24,7 +24,6 @@ games <- matrix(ncol=32, nrow=32, 0)
 row.names(games) <- levels(d$Home.Team)
 colnames(games) <- levels(d$Home.Team)
 for(i in start:end) {
-
         
     if(d$Home.Score[i] > d$Visitor.Score[i])
         games[d$Home.Team[i], d$Visitor[i]] <- games[d$Home.Team[i], d$Visitor[i]] + 1
@@ -33,8 +32,8 @@ for(i in start:end) {
 }
 write.table(games, file=paste(argv[2], "_wins.txt", sep=""), row.names=FALSE, col.names=FALSE)
 
-cat("Wins:")
-print(apply(games, 1, sum))
+#cat("Wins:")
+#print(apply(games, 1, sum))
 
 games <- matrix(ncol=32, nrow=32, 0)
 for(i in end:nrow(d)) {
