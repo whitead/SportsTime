@@ -5,17 +5,14 @@
 #include <unistd.h>
 #include <string.h>
 
-#define FILENAME_BUFFER_LENGTH 80
-#define NBINS 500
+#define FILENAME_BUFFER_LENGTH 64
+#define NBINS 1024
 #define tsize(x) (x * (x - 1) / 2)
 #define MAX_WINS 25
 
 inline
-double alpha_lprob(double alpha_trial, double alpha, double alpha_other, double p,
-		   unsigned int wins, unsigned int games) {
-  return (gsl_sf_lngamma(alpha_other + alpha_trial) - gsl_sf_lngamma(alpha_other + alpha)) + 
-    (gsl_sf_lngamma(alpha) - gsl_sf_lngamma(alpha_trial)) + 
-    (alpha_trial - alpha) * log(p);
+double alpha_lprob(double alpha_trial, double alpha, double alpha_other, double p) {
+  return (gsl_sf_lngamma(alpha_other + alpha_trial) - gsl_sf_lngamma(alpha_other + alpha)) + (gsl_sf_lngamma(alpha) - gsl_sf_lngamma(alpha_trial)) +  (alpha_trial - alpha) * log(p);
 }
 
 inline
@@ -38,35 +35,82 @@ inline
 bool lMH(double lp, gsl_rng* rng){
   if(lp >= 0)
     return true;
-
   return gsl_rng_uniform(rng) < exp(lp);
 }
 
 int test() {
-  
+
+
+  //test my equations
+  //alpha_lprob 
+  //should not improve
+  double test = alpha_lprob(2, 1, 1, 0.5);
+  printf("test 1: %g < 0 ?\n", test);
+  //should improve
+  test = alpha_lprob(2, 1, 1, 0.75);
+  printf("test 1: %g > 0 ?\n", test);
+
+  test = alpha_lprob(1, 1, 1, 0.5);
+  printf("test 1: %g == 0 ?\n", test);
+
+
+  //set up a test system
+  //5 teams, alpha is some simple linear pattern  
   unsigned int team_number = 5;
-  unsigned int i;
+  unsigned int i,j;
   double *alpha = (double*) malloc(sizeof(double) * team_number);
   for(i = 0; i < team_number; i++)
     alpha[i] = 10 - i * 2;
+  double max_alpha = 1000;
+
+  //run parameters. Just one win matrix.
   Run_Params* rp = init_run_params(1, 0, 0.2, 10);
+
+  //make a simple schedule
   unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * tsize(team_number));
+
   for(i = 0; i < tsize(team_number); i++)
-    games[i] = i; 
+    games[i] = 100; 
 
   unsigned int *wins = (unsigned int*) calloc(tsize(team_number), sizeof(unsigned int));
   double *alpha_fit = NULL;
   double *P = NULL;
-  
+
+  //generate a set of wins given those alphas.   
   generate_wins(wins, games, alpha, print_wins_fxn, NULL, team_number, rp);
 
-  free(rp);
-  rp = init_run_params(100000, 0.5, 20, 10);
-  for(i = 0; i < team_number; i++)
-    alpha[i] = 0;
+  free(rp);  
 
-  printf("Acceptance: %g\n", sample_model(wins, games, alpha_fit, P, accum_sample_fxn, alpha, team_number, rp));
+  //now we do a large run to try to recover our alphas from the win
+  //matrix
+  rp = init_run_params(100000, 0.5, 2, max_alpha);
+  //max alpha should be 
+  Array_Histogram* alpha_hist = build_array_histogram(team_number, NBINS, max_alpha / NBINS);    
+
+  printf("Acceptance: %g\n", sample_model(wins, games, alpha_fit, P, accum_sample_fxn, alpha_hist, team_number, rp));
+
+  //now we check to see how close the mode of alpha is to our original parameters
+
+  unsigned long int mode;
+  double alpha_mode;
+  printf("TRUE | ESTIMATOR\n");
+  for(i = 0; i < team_number; i++) {
+    //for each alpha
+    mode = 0;    
+    for(j = 0; j < alpha_hist->nbins; j++) {
+      //for each bin
+      if(alpha_hist->hist[j] > mode) {
+	mode = alpha_hist->hist[j];
+	alpha_mode = j * alpha_hist->width;
+      }
+    }
+    //compare with true value
+    printf("%g | %g\n", alpha[i], alpha_mode);
+  }
   
+  free(alpha_hist);
+  free(alpha);
+
   return 0;
 }
 
@@ -81,6 +125,9 @@ void print_help() {
 }
 
 int main(int argc, char* argv[]) {
+
+  test();
+  return 0;
   
   if(argc < 6) {
     print_help();
@@ -252,17 +299,13 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
 	rel_lprob += alpha_lprob(alpha_trial, 
 				 alpha[i], 
 				 alpha[j], 
-				 P[symm_index(i,j,team_number)],
-				 wins[symm_index(i,j,team_number)], 
-				 games[symm_index(i,j,team_number)]);
+				 P[symm_index(i,j,team_number)]);
 
       for(j = 0; j < i; j++)
 	rel_lprob += alpha_lprob(alpha_trial, 
 				 alpha[i], 
 				 alpha[j], 
-				 1 - P[symm_index(i,j,team_number)],
-				 games[symm_index(i,j,team_number)] - wins[symm_index(i,j,team_number)], 
-				 games[symm_index(i,j,team_number)]);
+				 1 - P[symm_index(i,j,team_number)]);
       //Metrpolis-Hastings 
       if(lMH(rel_lprob, rp->rng)) {
 	alpha[i] = alpha_trial;	
