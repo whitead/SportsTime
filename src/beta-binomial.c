@@ -277,8 +277,8 @@ int main(int argc, char* argv[]) {
 #endif //DEBUG
   
 
-  max_alpha = fmin(max_games, tsize(team_number)) * sqrt(team_number) / 2;
-  Run_Params* rp = init_run_params(iterations, 0.5, max_alpha / 25, max_alpha);
+  max_alpha = fmin(max_games, tsize(team_number)) * sqrt(team_number);
+  Run_Params* rp = init_run_params(iterations, 0.5, max_alpha / 10, max_alpha);
 
   if(predict_filename == NULL) {
     Array_Histogram* alpha_hist = build_array_histogram(team_number, NBINS, max_alpha / NBINS);    
