@@ -11,6 +11,7 @@
 
 typedef struct Run_Params_s {
   unsigned int iterations;
+  unsigned int sample_number;
   double equilibrium_ratio;
   double step_size;
   double max_alpha;
@@ -74,8 +75,11 @@ void generate_wins(unsigned int *wins, const unsigned int *games,
  * Create and initialize a Run_Param structure.
  *
  * Required parameters: Number of iterations to run and the ratio of
- * those iterations that are ignored due to equilibration of the model. Step_size
- * is the size of steps to take for the alpha monte carlo moves.
+ * iterations to discard for equilibration of the model. Step_size is
+ * the size of steps to take for the alpha monte carlo moves. The
+ * sample number is the number of samples accounting for the
+ * equilibration fraction.
+ *
  *
  * Returns: Run_Params 
  *
@@ -131,6 +135,27 @@ typedef struct Wins_Parameters_s {
   unsigned int* games;
 } Wins_Parameters;
 
+/*******************************************************************************
+ * This will load a matrix in the normal way. Call the diagonalize
+ * method to convert the matrix into the triangular format used in the
+ * rest of the code.
+ *
+ *
+ ********************************************************************************/
 unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int ncol);
 
+/*******************************************************************************
+ * Convert a matrix from NxN to a pairwise array of dimension NxN-1 /
+ * 2. (Only upper right triangle)
+ *
+ *
+ ********************************************************************************/
+unsigned int* diagonalize(unsigned int* matrix, unsigned int dim);
+
+/*******************************************************************************
+ *
+ * Writes out a histogram data structure to a file. The header in the
+ * file contains info about the data structure.
+ *
+ ********************************************************************************/
 void log_histogram(FILE* file, Array_Histogram* hist);

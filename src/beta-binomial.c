@@ -16,6 +16,20 @@ double alpha_lprob(double alpha_trial, double alpha, double alpha_other, double 
 }
 
 inline
+double lprob(double *alpha, double *P, unsigned int team_number) {
+  double lprob = 0;
+  unsigned int i, j, index;
+  for(i = index = 0; i < team_number; i++) {
+    for(j = i + 1; j < team_number; j++) {
+      lprob += gsl_sf_lngamma(alpha[i] + alpha[j]) + (alpha[i] - 1) * log(P[index]) + (alpha[j] - 1) * log(1 - P[index]) - gsl_sf_lngamma(alpha[i]) - gsl_sf_lngamma(alpha[j]);
+      index++;
+    }
+  }
+  return lprob;
+}
+
+
+inline
 double alpha_lprob_stirling(double alpha_trial, double alpha, double alpha_other, double p,
 		   unsigned int wins, unsigned int games) {
   return (alpha_trial - alpha) * (log(alpha_other) + log(p)) + alpha * (log(alpha) - 1) - alpha_trial * (log(alpha_trial) - 1);
@@ -38,13 +52,64 @@ bool lMH(double lp, gsl_rng* rng){
   return gsl_rng_uniform(rng) < exp(lp);
 }
 
+/* 
+ * Calculate the log-likelihood of a single new alpha 
+ */
+inline
+double single_alpha_move_lprob(unsigned int trial_index, 
+		  double alpha_trial, 
+		  double *alpha, double *P, 
+		  unsigned int team_number) {
+      //accumate log probability terms
+      double rel_lprob = 0;
+      unsigned int j;
+      for(j = trial_index + 1; j < team_number; j++)
+	rel_lprob += alpha_lprob(alpha_trial, 
+				 alpha[trial_index], 
+				 alpha[j], 
+				 P[symm_index(trial_index,j,team_number)]);
+
+      for(j = 0; j < trial_index; j++)
+	rel_lprob += alpha_lprob(alpha_trial, 
+				 alpha[trial_index], 
+				 alpha[j], 
+				 1 - P[symm_index(trial_index,j,team_number)]);
+      return rel_lprob;
+}
+/* 
+ * Calculate the log-likelihood for an array of new alphas
+ */
+inline
+double multi_alpha_move_lprob(double *alpha_trial_array, 
+		  double *alpha, double *P, 
+		  unsigned int team_number) {
+
+  return lprob(alpha_trial_array, P, team_number) - lprob(alpha, P, team_number);
+}
+
+/* L_2 measure with a skipped value
+ *
+ */
+inline
+double l2(double* array, unsigned int length, unsigned int skip_index) {
+  unsigned int i;
+  double sum = 0;
+
+  for(i = 0; i < skip_index; i++)
+    sum += array[i] * array[i];
+  for(i = skip_index + 1; i < length; i++)
+    sum += array[i] * array[i];
+
+  return sum;
+}
+
 int test() {
 
 
   //test my equations
   //alpha_lprob 
   //should not improve
-  double test = alpha_lprob(2, 1, 1, 0.5);
+  double test = alpha_lprob(10, 1, 1, 0.5);
   printf("test 1: %g < 0 ?\n", test);
   //should improve
   test = alpha_lprob(2, 1, 1, 0.75);
@@ -59,9 +124,10 @@ int test() {
   unsigned int team_number = 5;
   unsigned int i,j;
   double *alpha = (double*) malloc(sizeof(double) * team_number);
-  for(i = 0; i < team_number; i++)
-    alpha[i] = 10 - i * 2;
-  double max_alpha = 1000;
+  for(i = 0; i < team_number; i++) {
+    alpha[i] = 21 - i * 4;
+  }
+  double  max_alpha = 15 * sqrt(team_number);
 
   //run parameters. Just one win matrix.
   Run_Params* rp = init_run_params(1, 0, 0.2, 10);
@@ -70,7 +136,7 @@ int test() {
   unsigned int *games = (unsigned int*) malloc(sizeof(unsigned int) * tsize(team_number));
 
   for(i = 0; i < tsize(team_number); i++)
-    games[i] = 100; 
+    games[i] = 3; 
 
   unsigned int *wins = (unsigned int*) calloc(tsize(team_number), sizeof(unsigned int));
   double *alpha_fit = NULL;
@@ -83,7 +149,7 @@ int test() {
 
   //now we do a large run to try to recover our alphas from the win
   //matrix
-  rp = init_run_params(100000, 0.5, 2, max_alpha);
+  rp = init_run_params(1000000, 0.2, 2, max_alpha);
   //max alpha should be 
   Array_Histogram* alpha_hist = build_array_histogram(team_number, NBINS, max_alpha / NBINS);    
 
@@ -91,21 +157,25 @@ int test() {
 
   //now we check to see how close the mode of alpha is to our original parameters
 
-  unsigned long int mode;
-  double alpha_mode;
+  FILE *mfile = fopen("alpha.txt", "w");
+  log_histogram(mfile, alpha_hist);
+  fclose(mfile);
+
+  unsigned long int sample_sum;
+  double alpha_median;
   printf("TRUE | ESTIMATOR\n");
   for(i = 0; i < team_number; i++) {
     //for each alpha
-    mode = 0;    
+    sample_sum = 0;    
     for(j = 0; j < alpha_hist->nbins; j++) {
-      //for each bin
-      if(alpha_hist->hist[j] > mode) {
-	mode = alpha_hist->hist[j];
-	alpha_mode = j * alpha_hist->width;
+      sample_sum += alpha_hist->hist[i * alpha_hist->nbins + j];
+      if(sample_sum > rp->sample_number / 2) {
+	alpha_median = j * alpha_hist->width;
+	break;
       }
     }
     //compare with true value
-    printf("%g | %g\n", alpha[i], alpha_mode);
+    printf("%g | %g\n", alpha[i], alpha_median);
   }
   
   free(alpha_hist);
@@ -125,9 +195,6 @@ void print_help() {
 }
 
 int main(int argc, char* argv[]) {
-
-  test();
-  return 0;
   
   if(argc < 6) {
     print_help();
@@ -210,15 +277,13 @@ int main(int argc, char* argv[]) {
 #endif //DEBUG
   
 
-  max_alpha = fmin(max_games, tsize(team_number));
-  Run_Params* rp = init_run_params(iterations, 0.5, max_alpha / 10, max_alpha);
+  max_alpha = fmin(max_games, tsize(team_number)) * sqrt(team_number) / 2;
+  Run_Params* rp = init_run_params(iterations, 0.5, max_alpha / 25, max_alpha);
 
   if(predict_filename == NULL) {
     Array_Histogram* alpha_hist = build_array_histogram(team_number, NBINS, max_alpha / NBINS);    
     double acceptance = sample_model(wins, games, NULL, NULL, accum_sample_fxn, alpha_hist, team_number, rp);
-#ifdef DEBUG
-  printf("Acceptance: %g\n", acceptance);
-#endif //DEBUG
+    printf("Acceptance: %g\n", acceptance);
     //write histogram
     FILE *mfile = fopen("alpha.txt", "w");
     log_histogram(mfile, alpha_hist);
@@ -230,7 +295,8 @@ int main(int argc, char* argv[]) {
     wp->mhist = build_array_histogram(tsize(team_number), MAX_WINS, 1.0); 
     wp->win_sample = (unsigned int*) malloc(sizeof(unsigned int) * tsize(team_number));
     //load the games to predict
-    wp->games = load_uint_matrix(predict_filename, team_number, team_number);
+    wp->games = diagonalize(load_uint_matrix(predict_filename, team_number, team_number), team_number);
+
     //sample from loaded games
     sample_model(wins, games, 
 		 NULL, NULL, 
@@ -257,8 +323,9 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
 		    const unsigned int team_number, const Run_Params *rp) {
   
   unsigned int i,j,k, iters, acceptance, index;
-  double alpha_trial, rel_lprob, ratio = 0;
+  double alpha_trial, rel_lprob, radius, ratio = 0;
   double max_alpha = rp->max_alpha;
+  double *alpha_trial_array = (double*) malloc(sizeof(double)  * team_number);
 
 
   //initalize parameters as needed
@@ -286,31 +353,35 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
     for(k = 0; k < team_number; k++) {
       //choose index
       i = gsl_rng_uniform_int(rp->rng, team_number);
-      //perturb alpha
+      //perturb alpha. Reject samples less than 1.
       alpha_trial = alpha[i] + gsl_rng_uniform(rp->rng) * 2 * rp->step_size - rp->step_size;
-      //project
-      if(alpha_trial < 1)
-	alpha_trial = 1.;
-      if(alpha_trial > max_alpha)
-	alpha_trial = max_alpha;
-      //accumate terms
-      rel_lprob = 0;
-      for(j = i + 1; j < team_number; j++)
-	rel_lprob += alpha_lprob(alpha_trial, 
-				 alpha[i], 
-				 alpha[j], 
-				 P[symm_index(i,j,team_number)]);
-
-      for(j = 0; j < i; j++)
-	rel_lprob += alpha_lprob(alpha_trial, 
-				 alpha[i], 
-				 alpha[j], 
-				 1 - P[symm_index(i,j,team_number)]);
-      //Metrpolis-Hastings 
-      if(lMH(rel_lprob, rp->rng)) {
-	alpha[i] = alpha_trial;	
-	acceptance += 1;
-      }      
+      while(alpha_trial < 1)
+	alpha_trial = alpha[i] + gsl_rng_uniform(rp->rng) * 2 * rp->step_size - rp->step_size;
+      //check if it's in feasible set      
+      radius =  l2(alpha, team_number, i) + alpha_trial * alpha_trial;
+      //if it is, we only have to evaluate the trial
+      if(radius <= max_alpha*max_alpha) {
+	rel_lprob = single_alpha_move_lprob(i, alpha_trial, alpha, P, team_number);
+	//Metrpolis-Hastings 
+	if(lMH(rel_lprob, rp->rng)) {
+	  alpha[i] = alpha_trial;	
+	  acceptance += 1;
+	}      
+      }
+      else {
+	//alpha_trial is now a matrix
+	radius = sqrt(radius);
+	for(j = 0; j < team_number; j++)
+	  alpha_trial_array[j] = max_alpha * alpha[j] / radius;
+	alpha_trial_array[i] = max_alpha * alpha_trial / radius;
+	rel_lprob = multi_alpha_move_lprob(alpha_trial_array, alpha, P, team_number);
+	//Metrpolis-Hastings 
+	if(lMH(rel_lprob, rp->rng)) {
+	  for(j = 0; j < team_number; j++)
+	    alpha[j] = alpha_trial_array[j];
+	  acceptance += 1;
+	} 
+      }
     }
 
     //calculate acceptance ratio
@@ -321,6 +392,9 @@ double sample_model(const unsigned int *wins, const unsigned int *games,
       fxn(alpha, P, team_number, iters, rp, fxn_args);
 
   }
+  
+  free(alpha_trial_array);
+
   return ratio;
 }
 
@@ -361,6 +435,7 @@ Run_Params* init_run_params(unsigned int iterations, double equilibrium_ratio, d
   Run_Params* rp = (Run_Params*) malloc(sizeof(Run_Params));
   rp->iterations = iterations;
   rp->equilibrium_ratio = equilibrium_ratio;
+  rp->sample_number = (int) floor(iterations * (1 - equilibrium_ratio));
   rp->step_size = step_size;
   rp->max_alpha = max_alpha;
 
@@ -485,10 +560,10 @@ unsigned int* load_uint_matrix(char* filename, unsigned int nrow, unsigned int n
 void sample_wins_wrapper(const double* alpha, const double* P,
 			 unsigned int team_number, 
 			 unsigned int iterations, const Run_Params *rp,
-			 void* win_params_) {
+			 void* win_params) {
 
 
-  Wins_Parameters* wp = (Wins_Parameters*) win_params_;
+  Wins_Parameters* wp = (Wins_Parameters*) win_params;
   Array_Histogram *mhist = wp->mhist;
   
   unsigned int i,j,k,l;
@@ -521,3 +596,14 @@ Array_Histogram* build_array_histogram(unsigned int dimension,
   return mhist;
 
 }
+
+unsigned int* diagonalize(unsigned int* matrix, unsigned int dim) {
+  unsigned int* new_matrix = (unsigned int*) malloc(sizeof(unsigned int) * tsize(dim));
+  unsigned int i, j, index;
+  for(i = index = 0; i < dim; i++)
+    for(j = i+1; j < dim; j++)
+      new_matrix[index++] = matrix[i * dim + j];
+  free(matrix);
+  return new_matrix;
+}
+
