@@ -35,9 +35,13 @@ for(i in 1:m) {
   if(i < m) {
     for(j in (i+1):m) {
       games[pindex - 1] <- actual[i,j] + actual[j,i]
+      if(games[pindex - 1] == 0 &&  sum(explode(predicted[,1] - 0.5, predicted[,pindex])) != 0) {
+          cat(paste("Impossible prediction at ", i, j, "\n"))
+          print(predicted[,pindex])
+          q(save="yes")
+      }
       p <- median(explode(predicted[,1] - 0.5, predicted[,pindex]))
       error[pindex - 1] <- abs(actual[i,j] - p)
-      paste(actual[i,j],  p, "\n")
       pindex <- pindex + 1
     }
   }
@@ -46,3 +50,4 @@ for(i in 1:m) {
 cat(paste("games:", sum(games), "\n"))
 cat(paste("correct:", sum(games) - sum(error), "\n"))
 cat(paste("incorrect:", sum(error), "\n"))
+cat(paste("accuracy:", (sum(games) - sum(error)) / sum(games), "\n"))

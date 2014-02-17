@@ -23,8 +23,9 @@ if(length(argv) == 2) {
 games <- matrix(ncol=32, nrow=32, 0)
 row.names(games) <- levels(d$Home.Team)
 colnames(games) <- levels(d$Home.Team)
+
+#print wins
 for(i in start:end) {
-        
     if(d$Home.Score[i] > d$Visitor.Score[i])
         games[d$Home.Team[i], d$Visitor[i]] <- games[d$Home.Team[i], d$Visitor[i]] + 1
     else
@@ -32,13 +33,22 @@ for(i in start:end) {
 }
 write.table(games, file=paste(argv[2], "_wins.txt", sep=""), row.names=FALSE, col.names=FALSE)
 
-#cat("Wins:")
-#print(apply(games, 1, sum))
-
+#print games
 games <- matrix(ncol=32, nrow=32, 0)
-for(i in end:nrow(d)) {
-  games[d$Home.Team[i], d$Visitor[i]] <- games[d$Home.Team[i], d$Visitor[i]] + 1
-  games[d$Visitor[i], d$Home.Team[i]] <- games[d$Visitor[i], d$Home.Team[i]] + 1 
+for(i in start:end) {
+
+    games[d$Home.Team[i], d$Visitor[i]] <- games[d$Home.Team[i], d$Visitor[i]] + 1
+    games[d$Visitor[i], d$Home.Team[i]] <- games[d$Visitor[i], d$Home.Team[i]] + 1
 }
-if(nrow(d) - end > 1)
-  write.table(games, file=paste(argv[2], "_remaining.txt", sep=""), row.names=FALSE, col.names=FALSE)
+write.table(games, file=paste(argv[2], "_games.txt", sep=""), row.names=FALSE, col.names=FALSE)
+
+#cat("Games considered: ")
+#cat(paste(sum(apply(games, 1, sum)) / 2, "\n"))
+
+#games <- matrix(ncol=32, nrow=32, 0)
+#for(i in end:nrow(d)) {
+#  games[d$Home.Team[i], d$Visitor[i]] <- games[d$Home.Team[i], d$Visitor[i]] + 1
+#  games[d$Visitor[i], d$Home.Team[i]] <- games[d$Visitor[i], d$Home.Team[i]] + 1 
+#}
+#if(nrow(d) - end > 1)
+#  write.table(games, file=paste(argv[2], "_remaining.txt", sep=""), row.names=FALSE, col.names=FALSE)
