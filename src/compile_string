@@ -1,1 +1,2 @@
 gcc -Wall -g -Ofast -ftree-vectorize -march=native -o beta-binomial beta-binomial.c -lgsl -lm -lblas
+gcc -Wall -g -Ofast -ftree-vectorize -march=native -o beta-binomial beta-binomial.c -lgsl -lm -lblas
